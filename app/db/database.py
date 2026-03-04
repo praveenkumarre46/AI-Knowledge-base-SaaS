@@ -1,7 +1,15 @@
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = "postgresql://postgres:password@127.0.0.1:5432/ai_saas"
+# Read DATABASE_URL from environment for containerized deployments.
+# Fallback to a sensible local default for development.
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:password@localhost:5432/aikb"
+)
+
+# SQLAlchemy engine
 engine = create_engine(DATABASE_URL)
 
 SessionLocal = sessionmaker(
@@ -11,3 +19,11 @@ SessionLocal = sessionmaker(
 )
 
 Base = declarative_base()
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
