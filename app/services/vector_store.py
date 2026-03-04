@@ -8,93 +8,48 @@ from pymilvus import (
 
 COLLECTION_NAME = "document_chunks"
 
-
 def create_collection():
-
     if utility.has_collection(COLLECTION_NAME):
-        print("Collection already exists")
-        return Collection(COLLECTION_NAME)
+        collection = Collection(COLLECTION_NAME)
+    else:
+        fields = [
+            FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
+            FieldSchema(name="org_id", dtype=DataType.INT64),
+            FieldSchema(name="doc_id", dtype=DataType.INT64),
+            FieldSchema(name="chunk_text", dtype=DataType.VARCHAR, max_length=2000),
+            FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=384),
+        ]
 
-    fields = [
+        schema = CollectionSchema(fields)
+        collection = Collection(name=COLLECTION_NAME, schema=schema)
 
-        FieldSchema(
-            name="id",
-            dtype=DataType.INT64,
-            is_primary=True,
-            auto_id=True
-        ),
-
-        FieldSchema(
-            name="org_id",
-            dtype=DataType.INT64
-        ),
-
-        FieldSchema(
-            name="doc_id",
-            dtype=DataType.INT64
-        ),
-
-        FieldSchema(
-            name="chunk_text",
-            dtype=DataType.VARCHAR,
-            max_length=2048
-        ),
-
-        FieldSchema(
-            name="embedding",
-            dtype=DataType.FLOAT_VECTOR,
-            dim=384
-        )
-
-    ]
-
-    schema = CollectionSchema(fields)
-
-    collection = Collection(
-        name=COLLECTION_NAME,
-        schema=schema
-    )
-
-    print("Collection created")
-
-    # create index for faster search
-    try:
-        from pymilvus import Index
-
+    # 🔑 Ensure index exists (even if collection already existed)
+    if not collection.has_index():
         index_params = {
-            "index_type": "HNSW",
+            "index_type": "IVF_FLAT",
             "metric_type": "L2",
-            "params": {"M": 16, "efConstruction": 200}
+            "params": {"nlist": 128}
         }
-
-        Index(collection, "embedding", index_params)
-        print("Index created for embedding")
-    except Exception:
-        print("Failed to create index (it may already exist)")
-
-    # load collection for search/insert
-    collection.load()
+        collection.create_index(
+            field_name="embedding",
+            index_params=index_params
+        )
+        print("Milvus index created")
 
     return collection
-from pymilvus import Collection
-
-COLLECTION_NAME = "document_chunks"
 
 
-def insert_embeddings(org_id, doc_id, embeddings, chunk_texts=None):
+def insert_embeddings(org_id, doc_id, chunks, embeddings):
 
     collection = Collection(COLLECTION_NAME)
 
-    org_ids = [org_id] * len(embeddings)
-    doc_ids = [doc_id] * len(embeddings)
-
-    if chunk_texts is None:
-        chunk_texts = [""] * len(embeddings)
+    org_ids = [org_id] * len(chunks)
+    doc_ids = [doc_id] * len(chunks)
 
     data = [
         org_ids,
         doc_ids,
-        chunk_texts,
+        chunks,
         embeddings
     ]
 
@@ -102,10 +57,8 @@ def insert_embeddings(org_id, doc_id, embeddings, chunk_texts=None):
 
     collection.flush()
 
-    print("Embeddings inserted into Milvus")
-from pymilvus import Collection
+    print("Embeddings + chunks stored in Milvus")
 
-COLLECTION_NAME = "document_chunks"
 
 def search_embeddings(query_embedding, org_id, top_k=5):
 

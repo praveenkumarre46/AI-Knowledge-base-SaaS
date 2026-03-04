@@ -22,3 +22,19 @@ class User(Base):
     org_id = Column(Integer, ForeignKey("organizations.id"))
 
     organization = relationship("Organization", back_populates="users")
+
+from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.orm import relationship
+
+class Document(Base):
+    __tablename__ = "documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    content = Column(String, nullable=False)
+
+    org_id = Column(Integer, ForeignKey("organizations.id"))
+    uploaded_by = Column(Integer, ForeignKey("users.id"))
+
+    organization = relationship("Organization")
+    user = relationship("User")

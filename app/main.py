@@ -1,29 +1,29 @@
 from fastapi import FastAPI
+
 from app.db.database import engine
 from app.db import models
-from app.api import auth
 
-app = FastAPI(title="AI Knowledge Base SaaS")
+from app.api import auth
+from app.api import documents
+from app.api import rag
+
+from app.db.milvus import connect_milvus
+from app.services.vector_store import create_collection
+
+
+# Create database tables
+models.Base.metadata.create_all(bind=engine)
+
+
+app = FastAPI()
+
 
 @app.on_event("startup")
-def on_startup():
-    models.Base.metadata.create_all(bind=engine)
+def startup_event():
+    connect_milvus()
+    create_collection()
+
 
 app.include_router(auth.router)
-
-@app.get("/")
-def root():
-    return {"message": "Backend running 🚀"}
-
-from app.core.security import get_current_user
-from app.db import models
-from fastapi import Depends
-
-
-@app.get("/protected")
-def protected_route(current_user: models.User = Depends(get_current_user)):
-    return {
-        "message": "You are authenticated",
-        "user_id": current_user.id,
-        "org_id": current_user.org_id
-    }
+app.include_router(documents.router)
+app.include_router(rag.router)

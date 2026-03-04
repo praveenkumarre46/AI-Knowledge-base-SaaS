@@ -1,3 +1,5 @@
+from app.services.vector_store import search_embeddings
+from app.services.llm_service import generate_answer
 from app.utils.chunking import chunk_text
 from app.services.embedding_service import generate_embedding
 from app.services.vector_store import insert_embeddings
@@ -5,52 +7,34 @@ from app.services.vector_store import insert_embeddings
 
 def process_document(org_id: int, doc_id: int, text: str):
 
-    # Step 1: Chunk text
     chunks = chunk_text(text)
 
     embeddings = []
-    chunk_texts = []
 
-    # Step 2: Generate embeddings
     for chunk in chunks:
         emb = generate_embedding(chunk)
         embeddings.append(emb)
-        chunk_texts.append(chunk)
 
-    # Step 3: Store in Milvus
-    insert_embeddings(org_id, doc_id, embeddings, chunk_texts=chunk_texts)
+    insert_embeddings(
+    org_id,
+    doc_id,
+    chunks,
+    embeddings
+)
 
     return len(chunks)
-from app.services.embedding_service import generate_embedding
-from app.services.vector_store import search_embeddings
-from app.services.llm_service import call_ollama
+
 
 def retrieve_context(question: str, org_id: int):
 
-    # generate query embedding
     query_embedding = generate_embedding(question)
 
-    # search Milvus
     results = search_embeddings(query_embedding, org_id)
 
     contexts = []
 
     for hit in results[0]:
-        # hit.entity contains returned fields when output_fields specified
-        text = None
-        try:
-            text = hit.entity.get("chunk_text")
-        except Exception:
-            # fallback: empty
-            text = ""
-
-        doc_id = None
-        try:
-            doc_id = hit.entity.get("doc_id")
-        except Exception:
-            doc_id = None
-
-        contexts.append({"text": text, "distance": hit.distance, "doc_id": doc_id})
+        contexts.append(hit.entity.get("chunk_text"))
 
     return contexts
 
@@ -79,6 +63,19 @@ def answer_question(question: str, org_id: int, model: str = "llama2"):
 
     prompt = "\n".join(prompt_lines)
 
-    llm_result = call_ollama(prompt, model=model)
+    llm_result = generate_answer(question, contexts)
 
     return {"answer": llm_result, "contexts": contexts}
+from app.services.llm_service import generate_answer
+
+
+def rag_query(question: str, org_id: int):
+
+    contexts = retrieve_context(question, org_id)
+
+    answer = generate_answer(question, contexts)
+
+    return {
+        "answer": answer,
+        "sources": contexts
+    }
