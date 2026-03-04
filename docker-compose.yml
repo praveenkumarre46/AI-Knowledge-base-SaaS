@@ -13,6 +13,12 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   etcd:
     container_name: milvus-etcd
@@ -50,6 +56,12 @@ services:
     ports:
       - "19530:19530"
       - "9091:9091"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9091/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   web:
     container_name: ai_saas_web
@@ -66,7 +78,7 @@ services:
       postgres:
         condition: service_healthy
       milvus:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - .:/app
     restart: unless-stopped
